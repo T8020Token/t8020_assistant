@@ -1,10 +1,10 @@
-
 import streamlit as st
-import openai
 import requests
 import json
+from openai import OpenAI
 
-openai.api_key = st.secrets.get("OPENAI_API_KEY")
+# Use OpenAI's v1 client
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="T8020 Assistant", layout="wide")
 st.title("🤖 T8020 Community Assistant")
@@ -33,8 +33,8 @@ user_input = st.chat_input("Ask T8020Bot something...")
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.spinner("Thinking..."):
-        response = openai.ChatCompletion.create(
-            model="gpt-4-0613",
+        response = client.chat.completions.create(
+            model="gpt-4o",  # You can change this to your fine-tuned model ID
             messages=st.session_state.messages,
             tools=[
                 {
@@ -86,14 +86,19 @@ if user_input:
             ],
             tool_choice="auto"
         )
-        message = response["choices"][0]["message"]
+
+        message = response.choices[0].message
         st.session_state.messages.append(message)
-        if "tool_calls" in message:
-            for tool_call in message["tool_calls"]:
-                tool_name = tool_call["function"]["name"]
-                args = tool_call["function"]["arguments"]
+
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                tool_name = tool_call.function.name
+                args = tool_call.function.arguments
                 result = call_tool(tool_name, args)
-                st.session_state.messages.append({"role": "tool", "content": json.dumps(result)})
+                st.session_state.messages.append({
+                    "role": "tool",
+                    "content": json.dumps(result)
+                })
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
