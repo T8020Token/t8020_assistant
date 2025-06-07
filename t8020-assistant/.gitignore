@@ -1,0 +1,5 @@
+.t8020-assistant/streamlit/secrets.toml
+__pycache__/
+.secrets.toml
+secrets.toml
+.streamlit/secrets.toml
