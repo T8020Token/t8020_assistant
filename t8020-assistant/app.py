@@ -3,26 +3,31 @@ import requests
 import json
 from openai import OpenAI
 
-# OpenAI client
+# OpenAI client using secret key
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 st.set_page_config(page_title="T8020 Assistant", layout="wide")
 st.title("🤖 T8020 Community Assistant")
 
-# Initialize chat memory
+# Initialize chat state
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "system", "content": "You are T8020Bot, a helpful assistant that uses tools."}
+        {"role": "system", "content": "You are T8020Bot, a helpful assistant that uses real-time tools."}
     ]
 
-# Tool endpoints
+# Define backend tool routes
 TOOL_ENDPOINTS = {
     "get_current_weather": "http://localhost:5000/get_current_weather",
     "getLocalNews": "http://localhost:5000/getLocalNews",
-    "getCommunityEvents": "http://localhost:5000/getCommunityEvents"
+    "getNationalNews": "http://localhost:5000/getNationalNews",
+    "getWorldNews": "http://localhost:5000/getWorldNews",
+    "getLocalSportsScores": "http://localhost:5000/getLocalSportsScores",
+    "getNationalSportsUpdates": "http://localhost:5000/getNationalSportsUpdates",
+    "getZillowListings": "http://localhost:5000/getZillowListings",
+    "getGNewsWorld": "http://localhost:5000/getGNewsWorld"
 }
 
-# Call tool via HTTP
+# Function to call a tool endpoint
 def call_tool(name, arguments):
     try:
         url = TOOL_ENDPOINTS[name]
@@ -32,13 +37,14 @@ def call_tool(name, arguments):
     except Exception as e:
         return {"error": str(e)}
 
-# User input
+# Chat input
 user_input = st.chat_input("Ask T8020Bot something...")
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
+    
     with st.spinner("Thinking..."):
         response = client.chat.completions.create(
-            model="gpt-4o",  # Replace with your fine-tuned model ID if needed
+            model="gpt-4o",  # or your fine-tuned model ID
             messages=st.session_state.messages,
             tools=[
                 {
@@ -75,15 +81,92 @@ if user_input:
                 {
                     "type": "function",
                     "function": {
-                        "name": "getCommunityEvents",
-                        "description": "Get community events",
+                        "name": "getNationalNews",
+                        "description": "Fetch national news",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "category": {"type": "string"},
+                                "limit": {"type": "integer"}
+                            },
+                            "required": ["category", "limit"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "getWorldNews",
+                        "description": "Get latest world news",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "limit": {"type": "integer"}
+                            },
+                            "required": ["limit"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "getLocalSportsScores",
+                        "description": "Get local sports results",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "team": {"type": "string"},
+                                "sport": {"type": "string"},
+                                "date": {"type": "string"}
+                            },
+                            "required": ["team", "sport", "date"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "getNationalSportsUpdates",
+                        "description": "Get national sports updates",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "league": {"type": "string"},
+                                "date": {"type": "string"}
+                            },
+                            "required": ["league", "date"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "getZillowListings",
+                        "description": "Search Zillow for listings",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "location": {"type": "string"},
+                                "priceMin": {"type": "integer"},
+                                "priceMax": {"type": "integer"},
+                                "propertyType": {"type": "string"}
+                            },
+                            "required": ["location", "priceMin", "priceMax", "propertyType"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "getGNewsWorld",
+                        "description": "Get world news via GNews API",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "topic": {"type": "string"},
                                 "limit": {"type": "integer"}
                             },
-                            "required": ["location", "limit"]
+                            "required": ["topic", "limit"]
                         }
                     }
                 }
@@ -94,7 +177,6 @@ if user_input:
         message = response.choices[0].message
         st.session_state.messages.append(message)
 
-        # Handle tool calls
         if message.tool_calls:
             for tool_call in message.tool_calls:
                 tool_name = tool_call.function.name
@@ -103,13 +185,11 @@ if user_input:
                 st.session_state.messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": json.dumps(result)
+                    "content": json.dumps(result, indent=2)
                 })
 
-# Display chat
+# Render chat messages
 for msg in st.session_state.messages:
     if "role" in msg and "content" in msg:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
-    else:
-        st.warning("⚠️ Skipped an invalid message.")
